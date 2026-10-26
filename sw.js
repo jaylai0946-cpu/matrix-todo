@@ -1,7 +1,7 @@
 // Service worker：離線可用 + 接收推播
-const CACHE = 'matrix-todo-v1';
+const CACHE = 'matrix-todo-v2';
 const SHELL = [
-  './', 'index.html', 'style.css', 'app.js', 'sync.js', 'config.js', 'manifest.webmanifest',
+  './', 'index.html', 'style.css', 'app.js', 'sync.js', 'config.js', 'util.js', 'repeat.js', 'weather.js', 'focus.js', 'wallpaper.js', 'manifest.webmanifest',
   'icons/icon-192.png', 'icons/icon-512.png', 'icons/apple-touch-icon.png',
 ];
 

@@ -11,7 +11,7 @@ let fb = null;       // { auth, db, fs, au }
 let user = null;
 let hooks = null;
 let unsubs = [];
-const KINDS = ['tasks', 'matrices'];
+const KINDS = ['tasks', 'matrices', 'sessions'];
 
 export const configured = (cfg) => !!(cfg && cfg.apiKey && cfg.projectId);
 
