@@ -1,0 +1,4 @@
+node_modules/
+*-firebase-adminsdk-*.json
+推播金鑰*
+.DS_Store

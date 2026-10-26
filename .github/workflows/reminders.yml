@@ -1,0 +1,31 @@
+name: 發送提醒
+
+on:
+  schedule:
+    - cron: '*/5 * * * *'   # 每 5 分鐘（GitHub 尖峰時段可能延遲幾分鐘）
+  workflow_dispatch:        # 也可以在 Actions 頁面手動按「Run workflow」
+
+concurrency:
+  group: reminders
+  cancel-in-progress: false
+
+jobs:
+  send:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: 安裝套件
+        working-directory: scripts
+        run: npm install --no-audit --no-fund
+      - name: 發送到期提醒
+        working-directory: scripts
+        env:
+          FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+          VAPID_PUBLIC_KEY: ${{ secrets.VAPID_PUBLIC_KEY }}
+          VAPID_PRIVATE_KEY: ${{ secrets.VAPID_PRIVATE_KEY }}
+          VAPID_SUBJECT: ${{ secrets.VAPID_SUBJECT }}
+        run: node send-reminders.mjs
