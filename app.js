@@ -34,6 +34,7 @@ const prefs = {
   wallFont: wallpaper.WALL_RANGE.font.def, wallBlur: wallpaper.WALL_RANGE.blur.def,
   wallBright: wallpaper.WALL_RANGE.bright.def, wallBgMode: 'color', wallMockNP: false,
   wallShortcut: '設定背景圖片的照片', // 一鍵更新要叫的捷徑名稱
+  wallShowTitle: true, // 桌布左上角要不要顯示矩陣名稱
   ...(() => { try { return JSON.parse(localStorage.getItem(PKEY)) || {}; } catch { return {}; } })(),
 };
 const savePrefs = () => { try { localStorage.setItem(PKEY, JSON.stringify(prefs)); } catch {} };
@@ -1114,6 +1115,7 @@ function pushWallPrefs() {
       pos: prefs.wallPos, size: prefs.wallSize, font: prefs.wallFont,
       blur: prefs.wallBlur, bright: prefs.wallBright, bg: prefs.wallBg, bgMode: prefs.wallBgMode,
       sort: prefs.sort, // 讓 Scriptable 用一樣的任務排序
+      showTitle: prefs.wallShowTitle,
       updatedAt: Date.now(),
     });
   } catch { /* 沒登入或離線就只存本機 */ }
@@ -1152,7 +1154,7 @@ async function openWallpaper() {
       return { name: info.name, color: info.color, emoji: ICONS[info.icon] ? '' : info.icon, tasks: list.map((t) => t.title) };
     });
     return wallpaper.draw({
-      quads, bg: prefs.wallBg, title: m.name,
+      quads, bg: prefs.wallBg, title: prefs.wallShowTitle ? m.name : '',
       pos: prefs.wallPos, size: prefs.wallSize, font: prefs.wallFont,
       bgImage: bgImg, blur: prefs.wallBlur, bright: prefs.wallBright,
     });
@@ -1201,7 +1203,10 @@ async function openWallpaper() {
   const draw = (url) => `<div class="sheet-head"><span></span><h3>鎖定畫面桌布</h3><button class="link" data-a="done">完成</button></div>
     <div class="wall-frame"><img class="wall-preview" src="${url}" alt="桌布預覽">${mock()}</div>
     <p class="note center">虛線是系統佔用的位置，調整時避開它們</p>
-    <div class="wall-chips"><button data-mock="np" class="${prefs.wallMockNP ? 'on' : ''}">播放中的音樂</button></div>
+    <div class="wall-chips">
+      <button data-mock="np" class="${prefs.wallMockNP ? 'on' : ''}">播放中的音樂</button>
+      <button data-a="title" class="${prefs.wallShowTitle ? 'on' : ''}">顯示矩陣名稱</button>
+    </div>
     <div class="wall-sliders">${sliders()}</div>
     ${bgSection()}
     <p class="note" id="wallNote">${prefs.wallBgMode === 'photo' && !bgImg ? '還沒選照片，目前用純色背景。' : '自動更新鎖定畫面時會用這裡的設定，和上面的預覽一致。'}</p>
@@ -1256,6 +1261,11 @@ async function openWallpaper() {
   elSheet.onclick = (e) => {
     const mk = e.target.closest('[data-mock]');
     if (mk) { prefs.wallMockNP = !prefs.wallMockNP; savePrefs(); rerender(); return; }
+    if (e.target.closest('[data-a="title"]')) {
+      prefs.wallShowTitle = !prefs.wallShowTitle;
+      savePrefs(); pushWallPrefs(); rerender();
+      return;
+    }
     const mode = e.target.closest('[data-bgmode]');
     if (mode) {
       prefs.wallBgMode = mode.dataset.bgmode;
