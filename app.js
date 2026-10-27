@@ -29,6 +29,10 @@ const prefs = {
   theme: 'system', accent: '#3b82f6', summaryAuto: true, showWeather: true, unit: 'c', useGps: false,
   sort: 'custom', filter: 'all', addPos: 'top',
   calMode: 'timeline', monthStyle: 'line', calLayout: 'side', calScale: 1, wallBg: '#0e0e10',
+  // 鎖定畫面桌布的版面參數，預設值 = 改版前的外觀。會同步到 Firestore 給 Scriptable 用。
+  wallPos: wallpaper.WALL_RANGE.pos.def, wallSize: wallpaper.WALL_RANGE.size.def,
+  wallFont: wallpaper.WALL_RANGE.font.def, wallBlur: wallpaper.WALL_RANGE.blur.def,
+  wallBright: wallpaper.WALL_RANGE.bright.def,
   ...(() => { try { return JSON.parse(localStorage.getItem(PKEY)) || {}; } catch { return {}; } })(),
 };
 const savePrefs = () => { try { localStorage.setItem(PKEY, JSON.stringify(prefs)); } catch {} };
@@ -1091,6 +1095,31 @@ focus.init({
 /* =========================================================
    鎖定畫面桌布
    ========================================================= */
+// 版面參數同時存在本機和 Firestore：Scriptable 的「矩陣待辦桌布」會讀 Firestore 這份，
+// 自動更新鎖定畫面時才會跟這裡調的結果一致。沒登入的話 sync.push 自己會略過。
+function pushWallPrefs() {
+  try {
+    sync.push('prefs', {
+      id: 'wallpaper',
+      pos: prefs.wallPos, size: prefs.wallSize, font: prefs.wallFont,
+      blur: prefs.wallBlur, bright: prefs.wallBright, bg: prefs.wallBg,
+      updatedAt: Date.now(),
+    });
+  } catch { /* 沒登入或離線就只存本機 */ }
+}
+
+const WALL_SLIDERS = [
+  ['wallPos', 'pos', '矩陣位置', '%'],
+  ['wallSize', 'size', '最大矩陣大小', '%'],
+  ['wallFont', 'font', '字體大小', '%'],
+  ['wallBlur', 'blur', '背景模糊', ''],
+  ['wallBright', 'bright', '背景亮度', '%'],
+];
+const wallLabel = (key, rk, unit) => {
+  const v = Math.round(prefs[key]);
+  return `${rk === 'bright' && v > 0 ? '+' : ''}${v}${unit}`;
+};
+
 function openWallpaper() {
   const m = currentMatrix();
   const mid = m.id === ALL ? matrices()[0].id : m.id;
@@ -1100,17 +1129,61 @@ function openWallpaper() {
       const list = matrixTasks().filter((t) => !t.done && Number(t.quadrant) === q).sort(sorter());
       return { name: info.name, color: info.color, emoji: ICONS[info.icon] ? '' : info.icon, tasks: list.map((t) => t.title) };
     });
-    return wallpaper.draw({ quads, bg: prefs.wallBg, title: m.name });
+    return wallpaper.draw({
+      quads, bg: prefs.wallBg, title: m.name,
+      pos: prefs.wallPos, size: prefs.wallSize, font: prefs.wallFont,
+    });
   };
+  // 要是函式，不能是算好的字串：換背景色會重建整張表單，那時得用當下的 prefs 重畫滑桿
+  const sliders = () => WALL_SLIDERS.map(([key, rk, label, unit]) => {
+    const r = wallpaper.WALL_RANGE[rk];
+    return `<label class="wall-slider"><span>${label}<b data-wv="${key}">${wallLabel(key, rk, unit)}</b></span>
+      <input type="range" data-wall="${key}" data-rk="${rk}" data-unit="${unit}" min="${r.min}" max="${r.max}" step="1" value="${Math.round(prefs[key])}"></label>`;
+  }).join('');
   const draw = (url) => `<div class="sheet-head"><span></span><h3>鎖定畫面桌布</h3><button class="link" data-a="done">完成</button></div>
     <div class="wall-bgs">${wallpaper.BG_CHOICES.map(([c, l]) => `<button data-bg="${c}" class="${prefs.wallBg === c ? 'on' : ''}" style="background:${c}" aria-label="${l}"></button>`).join('')}</div>
     <img class="wall-preview" src="${url}" alt="桌布預覽">
+    <div class="wall-sliders">${sliders()}</div>
+    <p class="note">「背景模糊」和「背景亮度」只有在自動更新時用到背景照片才看得出來，這裡的預覽不會有變化。</p>
     <p class="note">iPhone：長按上面的圖片 →「加入照片」，再到「設定 → 背景圖片」設成鎖定畫面。任務有變動時回來重新產生一張。</p>
     <a class="btn ghost" style="display:block;width:100%" download="矩陣桌布.png" href="${url}">下載圖片</a>`;
   showSheet(draw(build()), { tall: true });
+
+  // 拖滑桿時只換預覽圖，不重建整張表單（重建會中斷拖曳）。
+  // 畫一張 1179×2556 的圖不便宜，所以用 rAF 壓成每幀最多一次。
+  let queued = false;
+  const refreshPreview = () => {
+    if (queued) return;
+    queued = true;
+    requestAnimationFrame(() => {
+      queued = false;
+      const url = build();
+      const img = elSheet.querySelector('.wall-preview');
+      const dl = elSheet.querySelector('a[download]');
+      if (img) img.src = url;
+      if (dl) dl.href = url;
+    });
+  };
+
+  elSheet.oninput = (e) => {
+    const s = e.target.closest('[data-wall]');
+    if (!s) return;
+    prefs[s.dataset.wall] = Number(s.value);
+    savePrefs();
+    const lab = elSheet.querySelector(`[data-wv="${s.dataset.wall}"]`);
+    if (lab) lab.textContent = wallLabel(s.dataset.wall, s.dataset.rk, s.dataset.unit);
+    if (s.dataset.rk !== 'blur' && s.dataset.rk !== 'bright') refreshPreview();
+  };
+  elSheet.onchange = (e) => { if (e.target.closest('[data-wall]')) pushWallPrefs(); };
+
   elSheet.onclick = (e) => {
     const b = e.target.closest('[data-bg]');
-    if (b) { prefs.wallBg = b.dataset.bg; savePrefs(); elSheet.innerHTML = `<div class="grabber"></div>${draw(build())}`; }
+    if (b) {
+      prefs.wallBg = b.dataset.bg;
+      savePrefs();
+      pushWallPrefs();
+      elSheet.innerHTML = `<div class="grabber"></div>${draw(build())}`;
+    }
     if (e.target.closest('[data-a="done"]')) hideSheet();
   };
 }

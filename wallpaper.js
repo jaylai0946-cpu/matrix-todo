@@ -1,7 +1,25 @@
 // 鎖定畫面桌布：把目前矩陣畫成一張 iPhone 尺寸的圖片
+//
+// 版面參數（pos/size/font）和 Scriptable 的「矩陣待辦桌布」共用同一組定義，
+// 設定會同步到 Firestore，兩邊畫出來的結果要一致。
+export const WALL_RANGE = {
+  pos:    { min: 20, max: 60, def: 36 },   // 矩陣頂端位置，佔畫面高度 %
+  // 52.27% 是精確還原改版前「bottom = H - 300」的值，動過滑桿之後就是整數
+  size:   { min: 25, max: 65, def: 52.27 }, // 矩陣區塊高度，佔畫面高度 %
+  font:   { min: 70, max: 130, def: 100 }, // 字體大小 %
+  blur:   { min: 0, max: 100, def: 0 },    // 背景模糊（只有在 Scriptable 設了背景照片時有效）
+  bright: { min: -80, max: 80, def: 0 },   // 背景亮度（同上）
+};
+
 export const BG_CHOICES = [
   ['#0e0e10', '深黑'], ['#1c2333', '夜藍'], ['#24302a', '墨綠'], ['#f4f1ea', '米白'], ['#fde7e4', '淡粉'], ['#e7eefc', '淡藍'],
 ];
+
+// 夾進合法範圍；沒給或給了怪東西就用預設值
+function num(v, r) {
+  const n = Number(v);
+  return Number.isFinite(n) ? Math.min(r.max, Math.max(r.min, n)) : r.def;
+}
 
 function luminance(hex) {
   const n = parseInt(hex.slice(1), 16);
@@ -40,7 +58,13 @@ function wrapLines(ctx, text, maxW, maxLines) {
 }
 
 // quads: [{name, color, emoji, tasks:[title...]}] ×4
-export function draw({ quads, bg = '#0e0e10', title = '' }) {
+export function draw({ quads, bg = '#0e0e10', title = '', pos, size, font }) {
+  const P = {
+    pos: num(pos, WALL_RANGE.pos),
+    size: num(size, WALL_RANGE.size),
+    font: num(font, WALL_RANGE.font),
+  };
+  const k = P.font / 100; // 字級與行高的縮放
   const W = 1179, H = 2556;
   const c = document.createElement('canvas');
   c.width = W; c.height = H;
@@ -50,13 +74,15 @@ export function draw({ quads, bg = '#0e0e10', title = '' }) {
   const muted = dark ? 'rgba(242,242,245,.55)' : 'rgba(26,26,30,.5)';
   const card = dark ? 'rgba(255,255,255,.07)' : 'rgba(255,255,255,.75)';
   ctx.fillStyle = bg; ctx.fillRect(0, 0, W, H);
-  const font = '-apple-system, "PingFang TC", "Noto Sans TC", sans-serif';
+  const face = '-apple-system, "PingFang TC", "Noto Sans TC", sans-serif';
 
-  // 上方留給時鐘（約 34%），下方留給手電筒/相機按鈕
-  const top = Math.round(H * 0.36), bottom = H - 300, side = 70, gap = 34;
+  // 上方留給時鐘與小工具，下方留給手電筒/相機按鈕
+  const top = Math.round(H * (P.pos / 100));
+  const bottom = Math.min(H - 180, top + Math.round(H * (P.size / 100)));
+  const side = 70, gap = 34;
   if (title) {
-    ctx.fillStyle = muted; ctx.font = `600 40px ${font}`;
-    ctx.fillText(title, side + 6, top - 30);
+    ctx.fillStyle = muted; ctx.font = `600 ${40 * k}px ${face}`;
+    ctx.fillText(title, side + 6, top - 30 * k);
   }
   const cw = (W - side * 2 - gap) / 2, ch = (bottom - top - gap) / 2;
   quads.forEach((q, i) => {
@@ -64,26 +90,26 @@ export function draw({ quads, bg = '#0e0e10', title = '' }) {
     roundRect(ctx, x, y, cw, ch, 44);
     ctx.fillStyle = card; ctx.fill();
     ctx.lineWidth = 3; ctx.strokeStyle = q.color + '88'; ctx.stroke();
-    ctx.fillStyle = q.color; ctx.font = `700 40px ${font}`;
+    ctx.fillStyle = q.color; ctx.font = `700 ${40 * k}px ${face}`;
     const head = (q.emoji ? q.emoji + ' ' : '') + q.name;
-    ctx.fillText(wrapLines(ctx, head, cw - 60, 1)[0] || '', x + 32, y + 70);
-    let ty = y + 140;
-    ctx.font = `500 38px ${font}`;
-    const maxY = y + ch - 40;
+    ctx.fillText(wrapLines(ctx, head, cw - 60, 1)[0] || '', x + 32, y + 70 * k);
+    let ty = y + 140 * k;
+    ctx.font = `500 ${38 * k}px ${face}`;
+    const maxY = y + ch - 40 * k;
     let shown = 0;
     for (const t of q.tasks) {
       const lines = wrapLines(ctx, t, cw - 100, 2);
-      const need = lines.length * 50 + 18;
+      const need = lines.length * 50 * k + 18 * k;
       if (ty + need > maxY) break;
-      ctx.beginPath(); ctx.arc(x + 46, ty - 12, 12, 0, Math.PI * 2);
+      ctx.beginPath(); ctx.arc(x + 46, ty - 12 * k, 12 * k, 0, Math.PI * 2);
       ctx.lineWidth = 4; ctx.strokeStyle = q.color; ctx.stroke();
       ctx.fillStyle = fg;
-      lines.forEach((l, k) => ctx.fillText(l, x + 76, ty + k * 50));
+      lines.forEach((l, i2) => ctx.fillText(l, x + 76, ty + i2 * 50 * k));
       ty += need; shown++;
     }
     const rest = q.tasks.length - shown;
-    if (rest > 0) { ctx.fillStyle = muted; ctx.font = `500 32px ${font}`; ctx.fillText(`還有 ${rest} 項…`, x + 76, Math.min(ty + 10, maxY)); }
-    if (!q.tasks.length) { ctx.fillStyle = muted; ctx.font = `500 34px ${font}`; ctx.fillText('—', x + 36, ty); }
+    if (rest > 0) { ctx.fillStyle = muted; ctx.font = `500 ${32 * k}px ${face}`; ctx.fillText(`還有 ${rest} 項…`, x + 76, Math.min(ty + 10 * k, maxY)); }
+    if (!q.tasks.length) { ctx.fillStyle = muted; ctx.font = `500 ${34 * k}px ${face}`; ctx.fillText('—', x + 36, ty); }
   });
   return c.toDataURL('image/png');
 }

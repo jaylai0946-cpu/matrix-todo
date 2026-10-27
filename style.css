@@ -379,6 +379,12 @@ body.focusing .tabbar, body.focusing .fab { display: none; }
 .wall-bgs button.on { box-shadow: 0 0 0 2px var(--panel), 0 0 0 4px var(--accent); }
 .wall-preview { display: block; width: 52%; margin: 0 auto; border-radius: 18px; border: 1px solid var(--line); -webkit-touch-callout: default; -webkit-user-select: auto; user-select: auto; }
 
+.wall-sliders { margin: 14px 0 4px; display: grid; gap: 10px; }
+.wall-slider { display: block; background: var(--panel-2); border-radius: 12px; padding: 9px 12px; }
+.wall-slider > span { display: flex; justify-content: space-between; font-size: 13px; color: var(--muted); margin-bottom: 2px; }
+.wall-slider > span b { color: var(--accent); font-weight: 600; font-variant-numeric: tabular-nums; }
+.wall-slider input[type="range"] { width: 100%; accent-color: var(--accent); }
+
 .toast[hidden] { display: none; }
 .toast { position: fixed; left: 50%; bottom: calc(var(--tab-h) + var(--safe-bottom) + 86px); z-index: 80; transform: translateX(-50%);
   background: var(--panel-3); color: var(--text); padding: 10px 16px; border-radius: 12px; font-size: 14px; box-shadow: 0 8px 24px rgba(0,0,0,.35);
