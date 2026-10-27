@@ -1098,12 +1098,15 @@ focus.init({
    鎖定畫面桌布
    ========================================================= */
 // 背景照片另外存，不放進 prefs（prefs 每次設定變動都會整包寫 localStorage，照片太大）
-const WBG_KEY = 'matrix-todo:wallBg';
-const loadWallBg = () => { try { return localStorage.getItem(WBG_KEY) || ''; } catch { return ''; } };
-function saveWallBg(b64) {
-  try { b64 ? localStorage.setItem(WBG_KEY, b64) : localStorage.removeItem(WBG_KEY); } catch {}
-  // 另外存一份到 Firestore 給 Scriptable 讀，這樣照片就能在 App 裡選，不用跑去 Scriptable
-  try { sync.push('prefs', { id: 'wallpaperBg', data: b64, updatedAt: Date.now() }); } catch {}
+// 原圖留著，調模糊/亮度時要重新烘焙；烘焙後那張才是上傳給 Scriptable 用的
+const WBG_RAW = 'matrix-todo:wallBgRaw';
+const loadWallBgRaw = () => { try { return localStorage.getItem(WBG_RAW) || ''; } catch { return ''; } };
+function saveWallBgRaw(b64) {
+  try { b64 ? localStorage.setItem(WBG_RAW, b64) : localStorage.removeItem(WBG_RAW); } catch {}
+}
+// Scriptable 沒有濾鏡 API，所以把模糊和亮度烘焙進圖片再上傳，兩邊結果才會一致
+function pushWallBg(bakedB64) {
+  try { sync.push('prefs', { id: 'wallpaperBg', data: bakedB64, updatedAt: Date.now() }); } catch {}
 }
 
 // 版面參數同時存在本機和 Firestore：Scriptable 的「矩陣待辦桌布」會讀 Firestore 這份，
@@ -1140,12 +1143,18 @@ async function openWallpaper() {
   // 預覽要把照片畫進去，所以先把它載好（build 是同步的）
   let bgImg = null;
   const reloadBg = async () => {
-    const b64 = loadWallBg();
+    const b64 = loadWallBgRaw();
     bgImg = (prefs.wallBgMode === 'photo' && b64)
       ? await wallpaper.loadImage('data:image/jpeg;base64,' + b64).catch(() => null)
       : null;
   };
   await reloadBg();
+
+  // 把目前的模糊/亮度烘焙進照片再上傳。拖滑桿時不做（太慢），放手才做。
+  const bakeAndPush = () => {
+    if (!bgImg) { pushWallBg(''); return; }
+    try { pushWallBg(wallpaper.bakeBackground(bgImg, prefs.wallBlur, prefs.wallBright)); } catch {}
+  };
 
   const build = () => {
     const quads = [1, 2, 3, 4].map((q) => {
@@ -1156,7 +1165,7 @@ async function openWallpaper() {
     return wallpaper.draw({
       quads, bg: prefs.wallBg, title: prefs.wallShowTitle ? m.name : '',
       pos: prefs.wallPos, size: prefs.wallSize, font: prefs.wallFont,
-      bgImage: bgImg, blur: prefs.wallBlur, bright: prefs.wallBright,
+      bgImage: bgImg, blur: prefs.wallBlur, bright: prefs.wallBright, baked: false,
     });
   };
 
@@ -1190,25 +1199,31 @@ async function openWallpaper() {
     const d = `${now.getMonth() + 1}月${now.getDate()}日 ${DOW[now.getDay()]}`;
     const t = `${now.getHours()}:${String(now.getMinutes()).padStart(2, '0')}`;
     // 有音樂在播時，鎖定畫面會多出「正在播放」那張卡，會蓋掉中間一大塊
-    const np = prefs.wallMockNP ? '<span class="m-np">正在播放</span>' : '';
+    const np = prefs.wallMockNP ? '<span class="m-np" data-label="正在播放"></span>' : '';
     return `<div class="wall-mock" aria-hidden="true">
       <span class="m-date">${d}</span>
       <span class="m-time">${t}</span>
-      <span class="m-widgets">小工具區</span>
+      <span class="m-widgets" data-label="小工具區"></span>
       ${np}
       <span class="m-btn m-left"></span><span class="m-btn m-right"></span>
     </div>`;
   };
 
   const draw = (url) => `<div class="sheet-head"><span></span><h3>鎖定畫面桌布</h3><button class="link" data-a="done">完成</button></div>
-    <div class="wall-frame"><img class="wall-preview" src="${url}" alt="桌布預覽">${mock()}</div>
-    <p class="note center">虛線是系統佔用的位置，調整時避開它們</p>
-    <div class="wall-chips">
-      <button data-mock="np" class="${prefs.wallMockNP ? 'on' : ''}">播放中的音樂</button>
-      <button data-a="title" class="${prefs.wallShowTitle ? 'on' : ''}">顯示矩陣名稱</button>
+    <div class="wall-layout">
+      <div class="wall-left">
+        <div class="wall-frame"><img class="wall-preview" src="${url}" alt="桌布預覽">${mock()}</div>
+        <p class="note center">虛線＝系統佔用</p>
+        <div class="wall-chips">
+          <button data-mock="np" class="${prefs.wallMockNP ? 'on' : ''}">播放中的音樂</button>
+          <button data-a="title" class="${prefs.wallShowTitle ? 'on' : ''}">顯示矩陣名稱</button>
+        </div>
+      </div>
+      <div class="wall-right">
+        <div class="wall-sliders">${sliders()}</div>
+        ${bgSection()}
+      </div>
     </div>
-    <div class="wall-sliders">${sliders()}</div>
-    ${bgSection()}
     <p class="note" id="wallNote">${prefs.wallBgMode === 'photo' && !bgImg ? '還沒選照片，目前用純色背景。' : '自動更新鎖定畫面時會用這裡的設定，和上面的預覽一致。'}</p>
     <a class="btn" style="display:block;width:100%" data-a="runsc"
        href="shortcuts://run-shortcut?name=${encodeURIComponent(prefs.wallShortcut)}">立即更新鎖定畫面</a>
@@ -1242,15 +1257,22 @@ async function openWallpaper() {
   };
 
   elSheet.onchange = async (e) => {
-    if (e.target.closest('[data-wall]')) { pushWallPrefs(); return; }
+    const sl = e.target.closest('[data-wall]');
+    if (sl) {
+      pushWallPrefs();
+      // 模糊/亮度是烘焙進照片的，放開滑桿才重做一次（拖曳途中做太慢）
+      if (sl.dataset.rk === 'blur' || sl.dataset.rk === 'bright') bakeAndPush();
+      return;
+    }
     const file = e.target.id === 'wallPhotoInput' && e.target.files && e.target.files[0];
     if (!file) return;
     const note = elSheet.querySelector('#wallNote');
     if (note) note.textContent = '處理照片中…';
     try {
       const b64 = await wallpaper.compressBackground(file);
-      saveWallBg(b64);
+      saveWallBgRaw(b64);
       await reloadBg();
+      bakeAndPush();
       rerender();
       toast('背景照片已更新');
     } catch (err) {
@@ -1277,7 +1299,8 @@ async function openWallpaper() {
     if (b) { prefs.wallBg = b.dataset.bg; savePrefs(); pushWallPrefs(); rerender(); return; }
     if (e.target.closest('[data-a="pick"]')) { elSheet.querySelector('#wallPhotoInput').click(); return; }
     if (e.target.closest('[data-a="rmphoto"]')) {
-      saveWallBg('');
+      saveWallBgRaw('');
+      pushWallBg('');
       reloadBg().then(rerender);
       return;
     }

@@ -29,14 +29,13 @@ function luminance(hex) {
   return 0.2126 * r + 0.7152 * g + 0.0722 * b;
 }
 
-// 等比填滿、超出的裁掉。ctx.filter 在舊版 Safari 沒有，偵測不到就不模糊（預覽少了模糊，不至於壞掉）
-function drawCover(ctx, img, W, H, blurAmount) {
-  const scale = Math.max(W / img.naturalWidth, H / img.naturalHeight);
+// 等比填滿、超出的裁掉。模糊會採樣到畫面外（邊緣會透出底色），
+// 所以多畫 12% 再讓它溢出去裁掉。
+function drawCover(ctx, img, W, H) {
+  const over = ctx.filter && ctx.filter !== 'none' ? 1.12 : 1;
+  const scale = Math.max(W / img.naturalWidth, H / img.naturalHeight) * over;
   const dw = img.naturalWidth * scale, dh = img.naturalHeight * scale;
-  const canFilter = 'filter' in ctx;
-  if (blurAmount && canFilter) ctx.filter = `blur(${(blurAmount / 100) * 30}px)`;
   ctx.drawImage(img, (W - dw) / 2, (H - dh) / 2, dw, dh);
-  if (canFilter) ctx.filter = 'none';
 }
 
 function roundRect(ctx, x, y, w, h, r) {
@@ -88,6 +87,39 @@ export async function compressBackground(file) {
   return c.toDataURL('image/jpeg', BG_QUALITY).split(',')[1];
 }
 
+// 模糊和亮度都用真正的 canvas 濾鏡。
+// 亮度用 brightness() 而不是疊半透明白/黑 —— 疊色只會讓照片變灰變濁，不是真的變亮。
+export function bgFilter(blur, bright) {
+  const b = num(blur, WALL_RANGE.blur), br = num(bright, WALL_RANGE.bright);
+  const out = [];
+  if (b) out.push(`blur(${(b / 100) * 30}px)`);
+  if (br) out.push(`brightness(${(100 + br) / 100})`);
+  return out.length ? out.join(' ') : 'none';
+}
+
+// 純色背景的亮度：直接調整色值，不疊色。和 Scriptable 端用同一套算法。
+export function shade(hex, bright) {
+  const br = num(bright, WALL_RANGE.bright);
+  if (!br) return hex;
+  const f = (100 + br) / 100;
+  const n = parseInt(hex.slice(1), 16);
+  const ch = [(n >> 16) & 255, (n >> 8) & 255, n & 255]
+    .map((v) => Math.max(0, Math.min(255, Math.round(v * f))));
+  return '#' + ch.map((v) => v.toString(16).padStart(2, '0')).join('');
+}
+
+// 把濾鏡「烘焙」進照片再存起來：Scriptable 沒有濾鏡 API，
+// 讓它直接畫這張處理好的圖，兩邊結果才會一模一樣。
+export function bakeBackground(img, blur, bright) {
+  const w = BG_MAX_W, h = Math.round(w * (2556 / 1179));
+  const c = document.createElement('canvas');
+  c.width = w; c.height = h;
+  const ctx = c.getContext('2d');
+  ctx.filter = bgFilter(blur, bright);
+  drawCover(ctx, img, w, h);
+  return c.toDataURL('image/jpeg', BG_QUALITY).split(',')[1];
+}
+
 export function loadImage(src) {
   return new Promise((res, rej) => {
     const img = new Image();
@@ -99,7 +131,7 @@ export function loadImage(src) {
 
 // quads: [{name, color, emoji, tasks:[title...]}] ×4
 // bgImage 有值時蓋過 bg 色；blur/bright 只對照片有意義
-export function draw({ quads, bg = '#0e0e10', title = '', pos, size, font, bgImage = null, blur, bright }) {
+export function draw({ quads, bg = '#0e0e10', title = '', pos, size, font, bgImage = null, blur, bright, baked = false }) {
   const P = {
     pos: num(pos, WALL_RANGE.pos),
     size: num(size, WALL_RANGE.size),
@@ -117,16 +149,15 @@ export function draw({ quads, bg = '#0e0e10', title = '', pos, size, font, bgIma
   const card = dark ? `rgba(255,255,255,${bgImage ? '.12' : '.07'})` : 'rgba(255,255,255,.75)';
 
   if (bgImage) {
-    drawCover(ctx, bgImage, W, H, B.blur);
+    // baked = 照片已經烘焙過濾鏡（從雲端拿回來的那張），不要再套一次
+    ctx.filter = baked ? 'none' : bgFilter(B.blur, B.bright);
+    drawCover(ctx, bgImage, W, H);
+    ctx.filter = 'none';
     ctx.fillStyle = 'rgba(0,0,0,.45)'; // 讓照片上的白字讀得清楚
     ctx.fillRect(0, 0, W, H);
   } else {
-    ctx.fillStyle = bg; ctx.fillRect(0, 0, W, H);
-  }
-  if (B.bright > 0) {
-    ctx.fillStyle = `rgba(255,255,255,${(B.bright / 100) * 0.55})`; ctx.fillRect(0, 0, W, H);
-  } else if (B.bright < 0) {
-    ctx.fillStyle = `rgba(0,0,0,${(-B.bright / 100) * 0.75})`; ctx.fillRect(0, 0, W, H);
+    ctx.fillStyle = shade(bg, B.bright);
+    ctx.fillRect(0, 0, W, H);
   }
   const face = '-apple-system, "PingFang TC", "Noto Sans TC", sans-serif';
 

@@ -374,11 +374,19 @@ body[data-tab="settings"] .topbar .sync-dot { margin-left: auto; }
 body.focusing .tabbar, body.focusing .fab { display: none; }
 
 /* wallpaper */
-.wall-bgs { display: flex; gap: 10px; justify-content: center; margin-bottom: 12px; }
-.wall-bgs button { width: 34px; height: 34px; border-radius: 50%; border: 1px solid var(--line); }
+.wall-bgs { display: flex; gap: 8px; justify-content: center; margin-bottom: 12px; flex-wrap: wrap; }
+/* flex 基底要固定，不然在窄欄裡會被壓成橢圓 */
+.wall-bgs button { flex: 0 0 auto; width: 28px; height: 28px; border-radius: 50%; border: 1px solid var(--line); }
 .wall-bgs button.on { box-shadow: 0 0 0 2px var(--panel), 0 0 0 4px var(--accent); }
+/* 左邊預覽、右邊滑桿。預覽貼頂，捲動時一直看得到。 */
+.wall-layout { display: flex; gap: 14px; align-items: flex-start; }
+.wall-left { flex: 0 0 42%; position: sticky; top: 4px; }
+.wall-right { flex: 1; min-width: 0; }
+.wall-left .note.center { margin: 6px 0 8px; font-size: 11px; }
+.wall-chips { flex-wrap: wrap; }
+
 /* 預覽外框：container-type 讓裡面的參考框能用 cqw 跟著縮放 */
-.wall-frame { position: relative; width: 52%; margin: 0 auto; container-type: inline-size; }
+.wall-frame { position: relative; width: 100%; container-type: inline-size; }
 .wall-preview { display: block; width: 100%; border-radius: 18px; border: 1px solid var(--line); -webkit-touch-callout: default; -webkit-user-select: auto; user-select: auto; }
 
 /* 鎖定畫面上系統會佔住的位置，只是預覽用的參考，不會進到真正的桌布圖 */
@@ -394,17 +402,20 @@ body.focusing .tabbar, body.focusing .fab { display: none; }
 .m-time { top: 9.2%; left: 0; right: 0; text-align: center; line-height: 1; font-weight: 700;
   letter-spacing: -0.04em; font-size: 76px; font-size: 40cqw;
   transform: scaleX(.72); transform-origin: 50% 0; }
-.m-widgets { top: 28.7%; left: 7%; right: 7%; height: 8.5%; display: flex; align-items: center;
-  justify-content: center; border: 1px dashed rgba(255,255,255,.45); border-radius: 8px;
-  color: rgba(255,255,255,.6); font-size: 9px; font-size: 4.4cqw; }
+.m-widgets { top: 28.7%; left: 7%; right: 7%; height: 8.5%;
+  border: 1px dashed rgba(255,255,255,.45); border-radius: 8px; }
 .m-btn { top: 89.7%; width: 24px; width: 12cqw; height: 24px; height: 12cqw; border-radius: 50%;
   border: 1px dashed rgba(255,255,255,.4); }
 .m-left { left: 13%; } .m-right { right: 13%; }
 
 /* 正在播放的音樂卡：約略範圍，實際高度會隨歌名長度和 iOS 版本略有不同 */
-.m-np { top: 70.3%; left: 7%; right: 7%; height: 16.3%; display: flex; align-items: center;
-  justify-content: center; border: 1px dashed rgba(255,255,255,.45); border-radius: 10px;
-  background: rgba(0,0,0,.25); color: rgba(255,255,255,.6); font-size: 9px; font-size: 4.4cqw; }
+.m-np { top: 70.3%; left: 7%; right: 7%; height: 16.3%;
+  border: 1px dashed rgba(255,255,255,.45); border-radius: 10px; background: rgba(0,0,0,.2); }
+
+/* 標籤縮到框的左上角，才不會蓋住卡片標題 */
+.m-widgets::before, .m-np::before { content: attr(data-label); position: absolute;
+  top: 2px; left: 6px; font-size: 7px; font-size: 3.4cqw; line-height: 1.2;
+  color: rgba(255,255,255,.5); }
 
 .wall-chips { display: flex; justify-content: center; gap: 8px; margin: -4px 0 10px; }
 .wall-chips button { padding: 6px 12px; border-radius: 999px; background: var(--panel-2);
@@ -413,7 +424,7 @@ body.focusing .tabbar, body.focusing .fab { display: none; }
 
 .note.center { text-align: center; }
 
-.wall-sliders { margin: 14px 0 4px; display: grid; gap: 10px; }
+.wall-sliders { margin: 0 0 4px; display: grid; gap: 10px; }
 .wall-slider { display: block; background: var(--panel-2); border-radius: 12px; padding: 9px 12px; }
 .wall-slider > span { display: flex; justify-content: space-between; font-size: 13px; color: var(--muted); margin-bottom: 2px; }
 .wall-slider > span b { color: var(--accent); font-weight: 600; font-variant-numeric: tabular-nums; }
@@ -421,7 +432,7 @@ body.focusing .tabbar, body.focusing .fab { display: none; }
 /* 沒有背景照片時，模糊/亮度不會有作用，淡化提示 */
 .wall-slider.dim { opacity: .45; }
 
-.wall-seg { display: flex; background: var(--panel-2); border-radius: 10px; padding: 3px; margin: 14px 0 12px; }
+.wall-seg { display: flex; background: var(--panel-2); border-radius: 10px; padding: 3px; margin: 10px 0 10px; }
 .wall-seg button { flex: 1; padding: 8px; border-radius: 8px; color: var(--text); font-size: 14px; }
 .wall-seg button.on { background: var(--panel-3); font-weight: 600; }
 .wall-photo { display: flex; gap: 10px; }
