@@ -384,6 +384,15 @@ body.focusing .tabbar, body.focusing .fab { display: none; }
 .wall-slider > span { display: flex; justify-content: space-between; font-size: 13px; color: var(--muted); margin-bottom: 2px; }
 .wall-slider > span b { color: var(--accent); font-weight: 600; font-variant-numeric: tabular-nums; }
 .wall-slider input[type="range"] { width: 100%; accent-color: var(--accent); }
+/* 沒有背景照片時，模糊/亮度不會有作用，淡化提示 */
+.wall-slider.dim { opacity: .45; }
+
+.wall-seg { display: flex; background: var(--panel-2); border-radius: 10px; padding: 3px; margin: 14px 0 12px; }
+.wall-seg button { flex: 1; padding: 8px; border-radius: 8px; color: var(--text); font-size: 14px; }
+.wall-seg button.on { background: var(--panel-3); font-weight: 600; }
+.wall-photo { display: flex; gap: 10px; }
+.wall-photo .btn { flex: 1; }
+.wall-photo .btn.danger { flex: 0 0 auto; color: var(--danger); }
 
 .toast[hidden] { display: none; }
 .toast { position: fixed; left: 50%; bottom: calc(var(--tab-h) + var(--safe-bottom) + 86px); z-index: 80; transform: translateX(-50%);

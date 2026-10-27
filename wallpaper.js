@@ -29,6 +29,16 @@ function luminance(hex) {
   return 0.2126 * r + 0.7152 * g + 0.0722 * b;
 }
 
+// 等比填滿、超出的裁掉。ctx.filter 在舊版 Safari 沒有，偵測不到就不模糊（預覽少了模糊，不至於壞掉）
+function drawCover(ctx, img, W, H, blurAmount) {
+  const scale = Math.max(W / img.naturalWidth, H / img.naturalHeight);
+  const dw = img.naturalWidth * scale, dh = img.naturalHeight * scale;
+  const canFilter = 'filter' in ctx;
+  if (blurAmount && canFilter) ctx.filter = `blur(${(blurAmount / 100) * 30}px)`;
+  ctx.drawImage(img, (W - dw) / 2, (H - dh) / 2, dw, dh);
+  if (canFilter) ctx.filter = 'none';
+}
+
 function roundRect(ctx, x, y, w, h, r) {
   ctx.beginPath();
   ctx.moveTo(x + r, y);
@@ -57,23 +67,67 @@ function wrapLines(ctx, text, maxW, maxLines) {
   return out;
 }
 
+// 背景照片要先壓縮再存，Firestore 單一文件上限 1 MiB。
+// 反正會被壓暗 45% 再蓋卡片，解析度不用太高。
+export const BG_MAX_W = 900;
+export const BG_QUALITY = 0.62;
+
+// 把使用者選的照片等比裁切成直式，再轉成 JPEG base64
+export async function compressBackground(file) {
+  const bitmap = await createImageBitmap(file);
+  const ratio = 2556 / 1179;
+  const w = Math.min(BG_MAX_W, bitmap.width);
+  const h = Math.round(w * ratio);
+  const c = document.createElement('canvas');
+  c.width = w; c.height = h;
+  const ctx = c.getContext('2d');
+  const scale = Math.max(w / bitmap.width, h / bitmap.height);
+  const dw = bitmap.width * scale, dh = bitmap.height * scale;
+  ctx.drawImage(bitmap, (w - dw) / 2, (h - dh) / 2, dw, dh);
+  bitmap.close?.();
+  return c.toDataURL('image/jpeg', BG_QUALITY).split(',')[1];
+}
+
+export function loadImage(src) {
+  return new Promise((res, rej) => {
+    const img = new Image();
+    img.onload = () => res(img);
+    img.onerror = rej;
+    img.src = src;
+  });
+}
+
 // quads: [{name, color, emoji, tasks:[title...]}] ×4
-export function draw({ quads, bg = '#0e0e10', title = '', pos, size, font }) {
+// bgImage 有值時蓋過 bg 色；blur/bright 只對照片有意義
+export function draw({ quads, bg = '#0e0e10', title = '', pos, size, font, bgImage = null, blur, bright }) {
   const P = {
     pos: num(pos, WALL_RANGE.pos),
     size: num(size, WALL_RANGE.size),
     font: num(font, WALL_RANGE.font),
   };
+  const B = { blur: num(blur, WALL_RANGE.blur), bright: num(bright, WALL_RANGE.bright) };
   const k = P.font / 100; // 字級與行高的縮放
   const W = 1179, H = 2556;
   const c = document.createElement('canvas');
   c.width = W; c.height = H;
   const ctx = c.getContext('2d');
-  const dark = luminance(bg) < 0.4;
+  const dark = bgImage ? true : luminance(bg) < 0.4;
   const fg = dark ? '#f2f2f5' : '#1a1a1e';
   const muted = dark ? 'rgba(242,242,245,.55)' : 'rgba(26,26,30,.5)';
-  const card = dark ? 'rgba(255,255,255,.07)' : 'rgba(255,255,255,.75)';
-  ctx.fillStyle = bg; ctx.fillRect(0, 0, W, H);
+  const card = dark ? `rgba(255,255,255,${bgImage ? '.12' : '.07'})` : 'rgba(255,255,255,.75)';
+
+  if (bgImage) {
+    drawCover(ctx, bgImage, W, H, B.blur);
+    ctx.fillStyle = 'rgba(0,0,0,.45)'; // 讓照片上的白字讀得清楚
+    ctx.fillRect(0, 0, W, H);
+  } else {
+    ctx.fillStyle = bg; ctx.fillRect(0, 0, W, H);
+  }
+  if (B.bright > 0) {
+    ctx.fillStyle = `rgba(255,255,255,${(B.bright / 100) * 0.55})`; ctx.fillRect(0, 0, W, H);
+  } else if (B.bright < 0) {
+    ctx.fillStyle = `rgba(0,0,0,${(-B.bright / 100) * 0.75})`; ctx.fillRect(0, 0, W, H);
+  }
   const face = '-apple-system, "PingFang TC", "Noto Sans TC", sans-serif';
 
   // 上方留給時鐘與小工具，下方留給手電筒/相機按鈕

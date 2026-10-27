@@ -32,7 +32,7 @@ const prefs = {
   // 鎖定畫面桌布的版面參數，預設值 = 改版前的外觀。會同步到 Firestore 給 Scriptable 用。
   wallPos: wallpaper.WALL_RANGE.pos.def, wallSize: wallpaper.WALL_RANGE.size.def,
   wallFont: wallpaper.WALL_RANGE.font.def, wallBlur: wallpaper.WALL_RANGE.blur.def,
-  wallBright: wallpaper.WALL_RANGE.bright.def,
+  wallBright: wallpaper.WALL_RANGE.bright.def, wallBgMode: 'color',
   ...(() => { try { return JSON.parse(localStorage.getItem(PKEY)) || {}; } catch { return {}; } })(),
 };
 const savePrefs = () => { try { localStorage.setItem(PKEY, JSON.stringify(prefs)); } catch {} };
@@ -1095,6 +1095,15 @@ focus.init({
 /* =========================================================
    鎖定畫面桌布
    ========================================================= */
+// 背景照片另外存，不放進 prefs（prefs 每次設定變動都會整包寫 localStorage，照片太大）
+const WBG_KEY = 'matrix-todo:wallBg';
+const loadWallBg = () => { try { return localStorage.getItem(WBG_KEY) || ''; } catch { return ''; } };
+function saveWallBg(b64) {
+  try { b64 ? localStorage.setItem(WBG_KEY, b64) : localStorage.removeItem(WBG_KEY); } catch {}
+  // 另外存一份到 Firestore 給 Scriptable 讀，這樣照片就能在 App 裡選，不用跑去 Scriptable
+  try { sync.push('prefs', { id: 'wallpaperBg', data: b64, updatedAt: Date.now() }); } catch {}
+}
+
 // 版面參數同時存在本機和 Firestore：Scriptable 的「矩陣待辦桌布」會讀 Firestore 這份，
 // 自動更新鎖定畫面時才會跟這裡調的結果一致。沒登入的話 sync.push 自己會略過。
 function pushWallPrefs() {
@@ -1102,7 +1111,8 @@ function pushWallPrefs() {
     sync.push('prefs', {
       id: 'wallpaper',
       pos: prefs.wallPos, size: prefs.wallSize, font: prefs.wallFont,
-      blur: prefs.wallBlur, bright: prefs.wallBright, bg: prefs.wallBg,
+      blur: prefs.wallBlur, bright: prefs.wallBright, bg: prefs.wallBg, bgMode: prefs.wallBgMode,
+      sort: prefs.sort, // 讓 Scriptable 用一樣的任務排序
       updatedAt: Date.now(),
     });
   } catch { /* 沒登入或離線就只存本機 */ }
@@ -1120,9 +1130,20 @@ const wallLabel = (key, rk, unit) => {
   return `${rk === 'bright' && v > 0 ? '+' : ''}${v}${unit}`;
 };
 
-function openWallpaper() {
+async function openWallpaper() {
   const m = currentMatrix();
   const mid = m.id === ALL ? matrices()[0].id : m.id;
+
+  // 預覽要把照片畫進去，所以先把它載好（build 是同步的）
+  let bgImg = null;
+  const reloadBg = async () => {
+    const b64 = loadWallBg();
+    bgImg = (prefs.wallBgMode === 'photo' && b64)
+      ? await wallpaper.loadImage('data:image/jpeg;base64,' + b64).catch(() => null)
+      : null;
+  };
+  await reloadBg();
+
   const build = () => {
     const quads = [1, 2, 3, 4].map((q) => {
       const info = quad(mid, q);
@@ -1132,21 +1153,41 @@ function openWallpaper() {
     return wallpaper.draw({
       quads, bg: prefs.wallBg, title: m.name,
       pos: prefs.wallPos, size: prefs.wallSize, font: prefs.wallFont,
+      bgImage: bgImg, blur: prefs.wallBlur, bright: prefs.wallBright,
     });
   };
-  // 要是函式，不能是算好的字串：換背景色會重建整張表單，那時得用當下的 prefs 重畫滑桿
+
+  // 要是函式，不能是算好的字串：換背景時會重建整張表單，那時得用當下的 prefs 重畫
   const sliders = () => WALL_SLIDERS.map(([key, rk, label, unit]) => {
     const r = wallpaper.WALL_RANGE[rk];
-    return `<label class="wall-slider"><span>${label}<b data-wv="${key}">${wallLabel(key, rk, unit)}</b></span>
+    const dim = (rk === 'blur' || rk === 'bright') && !bgImg ? ' dim' : '';
+    return `<label class="wall-slider${dim}"><span>${label}<b data-wv="${key}">${wallLabel(key, rk, unit)}</b></span>
       <input type="range" data-wall="${key}" data-rk="${rk}" data-unit="${unit}" min="${r.min}" max="${r.max}" step="1" value="${Math.round(prefs[key])}"></label>`;
   }).join('');
+
+  const bgSection = () => {
+    const photo = prefs.wallBgMode === 'photo';
+    const picker = photo
+      ? `<div class="wall-photo">
+           <button class="btn ghost" data-a="pick">${bgImg ? '換一張照片' : '選擇照片'}</button>
+           ${bgImg ? '<button class="btn ghost danger" data-a="rmphoto">移除</button>' : ''}
+           <input type="file" accept="image/*" id="wallPhotoInput" hidden>
+         </div>`
+      : `<div class="wall-bgs">${wallpaper.BG_CHOICES.map(([c, l]) => `<button data-bg="${c}" class="${prefs.wallBg === c ? 'on' : ''}" style="background:${c}" aria-label="${l}"></button>`).join('')}</div>`;
+    return `<div class="wall-seg">
+        <button data-bgmode="color" class="${photo ? '' : 'on'}">顏色</button>
+        <button data-bgmode="photo" class="${photo ? 'on' : ''}">照片</button>
+      </div>${picker}`;
+  };
+
   const draw = (url) => `<div class="sheet-head"><span></span><h3>鎖定畫面桌布</h3><button class="link" data-a="done">完成</button></div>
-    <div class="wall-bgs">${wallpaper.BG_CHOICES.map(([c, l]) => `<button data-bg="${c}" class="${prefs.wallBg === c ? 'on' : ''}" style="background:${c}" aria-label="${l}"></button>`).join('')}</div>
     <img class="wall-preview" src="${url}" alt="桌布預覽">
     <div class="wall-sliders">${sliders()}</div>
-    <p class="note">「背景模糊」和「背景亮度」只有在自動更新時用到背景照片才看得出來，這裡的預覽不會有變化。</p>
-    <p class="note">iPhone：長按上面的圖片 →「加入照片」，再到「設定 → 背景圖片」設成鎖定畫面。任務有變動時回來重新產生一張。</p>
+    ${bgSection()}
+    <p class="note" id="wallNote">${prefs.wallBgMode === 'photo' && !bgImg ? '還沒選照片，目前用純色背景。' : '自動更新鎖定畫面時會用這裡的設定，和上面的預覽一致。'}</p>
     <a class="btn ghost" style="display:block;width:100%" download="矩陣桌布.png" href="${url}">下載圖片</a>`;
+
+  const rerender = () => { elSheet.innerHTML = `<div class="grabber"></div>${draw(build())}`; };
   showSheet(draw(build()), { tall: true });
 
   // 拖滑桿時只換預覽圖，不重建整張表單（重建會中斷拖曳）。
@@ -1172,17 +1213,42 @@ function openWallpaper() {
     savePrefs();
     const lab = elSheet.querySelector(`[data-wv="${s.dataset.wall}"]`);
     if (lab) lab.textContent = wallLabel(s.dataset.wall, s.dataset.rk, s.dataset.unit);
-    if (s.dataset.rk !== 'blur' && s.dataset.rk !== 'bright') refreshPreview();
+    // 沒有照片的話，模糊和亮度不會影響畫面，不用重畫
+    if (bgImg || (s.dataset.rk !== 'blur' && s.dataset.rk !== 'bright')) refreshPreview();
   };
-  elSheet.onchange = (e) => { if (e.target.closest('[data-wall]')) pushWallPrefs(); };
+
+  elSheet.onchange = async (e) => {
+    if (e.target.closest('[data-wall]')) { pushWallPrefs(); return; }
+    const file = e.target.id === 'wallPhotoInput' && e.target.files && e.target.files[0];
+    if (!file) return;
+    const note = elSheet.querySelector('#wallNote');
+    if (note) note.textContent = '處理照片中…';
+    try {
+      const b64 = await wallpaper.compressBackground(file);
+      saveWallBg(b64);
+      await reloadBg();
+      rerender();
+      toast('背景照片已更新');
+    } catch (err) {
+      if (note) note.textContent = '這張照片讀不進來，換一張試試。';
+    }
+  };
 
   elSheet.onclick = (e) => {
+    const mode = e.target.closest('[data-bgmode]');
+    if (mode) {
+      prefs.wallBgMode = mode.dataset.bgmode;
+      savePrefs(); pushWallPrefs();
+      reloadBg().then(rerender);
+      return;
+    }
     const b = e.target.closest('[data-bg]');
-    if (b) {
-      prefs.wallBg = b.dataset.bg;
-      savePrefs();
-      pushWallPrefs();
-      elSheet.innerHTML = `<div class="grabber"></div>${draw(build())}`;
+    if (b) { prefs.wallBg = b.dataset.bg; savePrefs(); pushWallPrefs(); rerender(); return; }
+    if (e.target.closest('[data-a="pick"]')) { elSheet.querySelector('#wallPhotoInput').click(); return; }
+    if (e.target.closest('[data-a="rmphoto"]')) {
+      saveWallBg('');
+      reloadBg().then(rerender);
+      return;
     }
     if (e.target.closest('[data-a="done"]')) hideSheet();
   };
