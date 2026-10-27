@@ -33,6 +33,7 @@ const prefs = {
   wallPos: wallpaper.WALL_RANGE.pos.def, wallSize: wallpaper.WALL_RANGE.size.def,
   wallFont: wallpaper.WALL_RANGE.font.def, wallBlur: wallpaper.WALL_RANGE.blur.def,
   wallBright: wallpaper.WALL_RANGE.bright.def, wallBgMode: 'color', wallMockNP: false,
+  wallShortcut: '設定背景圖片的照片', // 一鍵更新要叫的捷徑名稱
   ...(() => { try { return JSON.parse(localStorage.getItem(PKEY)) || {}; } catch { return {}; } })(),
 };
 const savePrefs = () => { try { localStorage.setItem(PKEY, JSON.stringify(prefs)); } catch {} };
@@ -1203,7 +1204,10 @@ async function openWallpaper() {
     <div class="wall-chips"><button data-mock="np" class="${prefs.wallMockNP ? 'on' : ''}">播放中的音樂</button></div>
     <div class="wall-sliders">${sliders()}</div>
     ${bgSection()}
-    <p class="note" id="wallNote">${prefs.wallBgMode === 'photo' && !bgImg ? '還沒選照片，目前用純色背景。' : '自動更新鎖定畫面時會用這裡的設定，和上面的預覽一致。'}</p>`;
+    <p class="note" id="wallNote">${prefs.wallBgMode === 'photo' && !bgImg ? '還沒選照片，目前用純色背景。' : '自動更新鎖定畫面時會用這裡的設定，和上面的預覽一致。'}</p>
+    <a class="btn" style="display:block;width:100%" data-a="runsc"
+       href="shortcuts://run-shortcut?name=${encodeURIComponent(prefs.wallShortcut)}">立即更新鎖定畫面</a>
+    <p class="note center">用捷徑「${esc(prefs.wallShortcut)}」更新 · <button class="link" data-a="scname">改名稱</button></p>`;
 
   const rerender = () => { elSheet.innerHTML = `<div class="grabber"></div>${draw(build())}`; };
   showSheet(draw(build()), { tall: true });
@@ -1266,6 +1270,17 @@ async function openWallpaper() {
       saveWallBg('');
       reloadBg().then(rerender);
       return;
+    }
+    if (e.target.closest('[data-a="scname"]')) {
+      const v = prompt('捷徑的確切名稱（在「捷徑」App 的資料庫裡看得到）', prefs.wallShortcut);
+      if (v && v.trim()) { prefs.wallShortcut = v.trim(); savePrefs(); rerender(); }
+      return;
+    }
+    if (e.target.closest('[data-a="runsc"]')) {
+      // 連結本身是 shortcuts:// 開頭，點下去 iOS 會切到「捷徑」跑完再跳回來。
+      // 這裡只是先把設定推上 Firestore，捷徑那邊是現抓的，拿到的就是最新狀態。
+      pushWallPrefs();
+      return; // 不擋預設行為，讓它正常導向
     }
     if (e.target.closest('[data-a="done"]')) hideSheet();
   };
