@@ -1452,8 +1452,18 @@ function envInfo() {
 // home indicator 很遠了，這時再保留 34pt 等於白白浪費。把已經空出來的扣掉。
 function syncViewportGap() {
   const standalone = matchMedia('(display-mode: standalone)').matches;
+  // 上方安全區 > 0 代表視窗是從螢幕頂端開始的，少掉的高度就落在底部。
+  // 若狀態列模式改成不透明，視窗會改從狀態列下方開始，少掉的高度在上面，
+  // 這時候補償會補錯邊，所以要先確認。
+  const probe = document.createElement('div');
+  probe.style.cssText = 'position:fixed;left:-9999px;width:1px;height:env(safe-area-inset-top,0px)';
+  document.body.appendChild(probe);
+  const topInset = probe.getBoundingClientRect().height;
+  probe.remove();
+
   const screenH = (window.screen && window.screen.height) || window.innerHeight;
-  const gap = standalone ? Math.max(0, Math.round(screenH - window.innerHeight)) : 0;
+  const missing = Math.max(0, Math.round(screenH - window.innerHeight));
+  const gap = (standalone && topInset > 0) ? missing : 0;
   document.documentElement.style.setProperty('--vgap', gap + 'px');
 }
 syncViewportGap();
