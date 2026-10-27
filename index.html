@@ -7,7 +7,10 @@
   <meta name="theme-color" content="#0e0e10">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="mobile-web-app-capable" content="yes">
-  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <!-- black-translucent 在 iOS 上會把視窗給成「扣掉狀態列」的高度卻貼在螢幕頂端，
+       底部因此留下一段不屬於網頁的空白。改成 black：視窗改從狀態列下方開始，
+       高度一樣，但位置對了，底部那段空白就不見了。 -->
+  <meta name="apple-mobile-web-app-status-bar-style" content="black">
   <meta name="apple-mobile-web-app-title" content="矩陣">
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
