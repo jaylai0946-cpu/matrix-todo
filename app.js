@@ -1406,7 +1406,31 @@ function renderSettings() {
       <div class="row"><span>快捷鍵（電腦）<div class="sub">N 新增 · 1–4 新增到象限 · / 搜尋 · [ ] 切換矩陣 · T 今天</div></span></div>
     </div>
     ${!standalone ? `<p class="note">在 iPhone 上：用 Safari 打開這個網址 → 點下方「分享」→「加入主畫面」，就會像 App 一樣全螢幕使用。</p>` : ''}
-    <p class="note">矩陣待辦 · v2.0 · 天氣資料 Open-Meteo</p>`;
+    <p class="note">矩陣待辦 · v2.0 · 天氣資料 Open-Meteo</p>
+    <p class="note" id="envInfo"></p>`;
+
+  // 要等 innerHTML 套用、分頁列也量得到之後才填
+  const info = $('#envInfo');
+  if (info) info.textContent = envInfo();
+}
+
+// 版面在不同裝置上會出現解釋不了的留白，把實際數值印出來才查得動
+function envInfo() {
+  // 用量測元素讀，不要用 getComputedStyle —— 自訂屬性裡的 min() 不會被解算成數值
+  const probe = document.createElement('div');
+  probe.style.cssText = 'position:fixed;left:-9999px;bottom:0;width:1px;height:env(safe-area-inset-bottom,0px)';
+  document.body.appendChild(probe);
+  const rawBottom = probe.getBoundingClientRect().height;
+  probe.style.height = 'env(safe-area-inset-top,0px)';
+  const rawTop = probe.getBoundingClientRect().height;
+  probe.style.height = 'var(--safe-bottom)';
+  const used = probe.getBoundingClientRect().height;
+  probe.remove();
+  const tb = document.querySelector('#tabbar');
+  const r = tb ? tb.getBoundingClientRect() : { height: 0, bottom: 0 };
+  const mode = matchMedia('(display-mode: standalone)').matches ? '獨立模式' : '瀏覽器';
+  return `視窗 ${innerWidth}×${innerHeight} · 安全區 上${rawTop.toFixed(0)} 下${rawBottom.toFixed(0)}`
+    + ` · 實際用 ${used.toFixed(0)} · 分頁列 高${r.height.toFixed(0)} 底${(innerHeight - r.bottom).toFixed(0)} · ${mode}`;
 }
 
 const elSettings = $('#settings');
