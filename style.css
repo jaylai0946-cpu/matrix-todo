@@ -13,7 +13,10 @@
   --tab-h: 58px;
   --top-h: 52px;
   --safe-top: env(safe-area-inset-top, 0px);
-  --safe-bottom: env(safe-area-inset-bottom, 0px);
+  /* iPhone 的下方安全區（home indicator）最多就是 34pt，iPad 更小。
+     某些情況下 env() 會回傳明顯過大的值，把分頁列整個撐開、底部出現一大塊黑，
+     所以在這裡限幅。 */
+  --safe-bottom: min(env(safe-area-inset-bottom, 0px), 34px);
   --hour: 56px;
   --cal-scale: 1;
   color-scheme: dark;
