@@ -377,7 +377,35 @@ body.focusing .tabbar, body.focusing .fab { display: none; }
 .wall-bgs { display: flex; gap: 10px; justify-content: center; margin-bottom: 12px; }
 .wall-bgs button { width: 34px; height: 34px; border-radius: 50%; border: 1px solid var(--line); }
 .wall-bgs button.on { box-shadow: 0 0 0 2px var(--panel), 0 0 0 4px var(--accent); }
-.wall-preview { display: block; width: 52%; margin: 0 auto; border-radius: 18px; border: 1px solid var(--line); -webkit-touch-callout: default; -webkit-user-select: auto; user-select: auto; }
+/* 預覽外框：container-type 讓裡面的參考框能用 cqw 跟著縮放 */
+.wall-frame { position: relative; width: 52%; margin: 0 auto; container-type: inline-size; }
+.wall-preview { display: block; width: 100%; border-radius: 18px; border: 1px solid var(--line); -webkit-touch-callout: default; -webkit-user-select: auto; user-select: auto; }
+
+/* 鎖定畫面上系統會佔住的位置，只是預覽用的參考，不會進到真正的桌布圖 */
+.wall-mock { position: absolute; inset: 0; pointer-events: none; color: rgba(255,255,255,.92);
+  text-shadow: 0 1px 4px rgba(0,0,0,.7); font-weight: 500; }
+.wall-mock > * { position: absolute; }
+.m-date { top: 6%; left: 0; right: 0; text-align: center; font-size: 10px; font-size: 5.2cqw; }
+.m-time { top: 9.5%; left: 0; right: 0; text-align: center; line-height: 1; font-weight: 300;
+  font-size: 42px; font-size: 22cqw; }
+.m-widgets { top: 25%; left: 7%; right: 7%; height: 8.5%; display: flex; align-items: center;
+  justify-content: center; border: 1px dashed rgba(255,255,255,.45); border-radius: 8px;
+  color: rgba(255,255,255,.6); font-size: 9px; font-size: 4.4cqw; }
+.m-btn { top: 87%; width: 24px; width: 12cqw; height: 24px; height: 12cqw; border-radius: 50%;
+  border: 1px dashed rgba(255,255,255,.4); }
+.m-left { left: 13%; } .m-right { right: 13%; }
+
+/* 正在播放的音樂卡：約略範圍，實際高度會隨歌名長度和 iOS 版本略有不同 */
+.m-np { top: 37%; left: 7%; right: 7%; height: 37%; display: flex; align-items: center;
+  justify-content: center; border: 1px dashed rgba(255,255,255,.45); border-radius: 10px;
+  background: rgba(0,0,0,.25); color: rgba(255,255,255,.6); font-size: 9px; font-size: 4.4cqw; }
+
+.wall-chips { display: flex; justify-content: center; gap: 8px; margin: -4px 0 10px; }
+.wall-chips button { padding: 6px 12px; border-radius: 999px; background: var(--panel-2);
+  color: var(--muted); font-size: 12px; border: 1px solid transparent; }
+.wall-chips button.on { color: var(--accent); border-color: var(--accent); }
+
+.note.center { text-align: center; }
 
 .wall-sliders { margin: 14px 0 4px; display: grid; gap: 10px; }
 .wall-slider { display: block; background: var(--panel-2); border-radius: 12px; padding: 9px 12px; }

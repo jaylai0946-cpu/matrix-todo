@@ -32,7 +32,7 @@ const prefs = {
   // 鎖定畫面桌布的版面參數，預設值 = 改版前的外觀。會同步到 Firestore 給 Scriptable 用。
   wallPos: wallpaper.WALL_RANGE.pos.def, wallSize: wallpaper.WALL_RANGE.size.def,
   wallFont: wallpaper.WALL_RANGE.font.def, wallBlur: wallpaper.WALL_RANGE.blur.def,
-  wallBright: wallpaper.WALL_RANGE.bright.def, wallBgMode: 'color',
+  wallBright: wallpaper.WALL_RANGE.bright.def, wallBgMode: 'color', wallMockNP: false,
   ...(() => { try { return JSON.parse(localStorage.getItem(PKEY)) || {}; } catch { return {}; } })(),
 };
 const savePrefs = () => { try { localStorage.setItem(PKEY, JSON.stringify(prefs)); } catch {} };
@@ -1180,12 +1180,30 @@ async function openWallpaper() {
       </div>${picker}`;
   };
 
+  // 疊在預覽上的鎖定畫面參考框：日期、時鐘、小工具列、下方按鈕的實際位置。
+  // 只是預覽用的參考，不會畫進真正的桌布圖裡。
+  const mock = () => {
+    const now = new Date();
+    const d = `${now.getMonth() + 1}月${now.getDate()}日 ${DOW[now.getDay()]}`;
+    const t = `${now.getHours()}:${String(now.getMinutes()).padStart(2, '0')}`;
+    // 有音樂在播時，鎖定畫面會多出「正在播放」那張卡，會蓋掉中間一大塊
+    const np = prefs.wallMockNP ? '<span class="m-np">正在播放</span>' : '';
+    return `<div class="wall-mock" aria-hidden="true">
+      <span class="m-date">${d}</span>
+      <span class="m-time">${t}</span>
+      <span class="m-widgets">小工具區</span>
+      ${np}
+      <span class="m-btn m-left"></span><span class="m-btn m-right"></span>
+    </div>`;
+  };
+
   const draw = (url) => `<div class="sheet-head"><span></span><h3>鎖定畫面桌布</h3><button class="link" data-a="done">完成</button></div>
-    <img class="wall-preview" src="${url}" alt="桌布預覽">
+    <div class="wall-frame"><img class="wall-preview" src="${url}" alt="桌布預覽">${mock()}</div>
+    <p class="note center">虛線是系統佔用的位置，調整時避開它們</p>
+    <div class="wall-chips"><button data-mock="np" class="${prefs.wallMockNP ? 'on' : ''}">播放中的音樂</button></div>
     <div class="wall-sliders">${sliders()}</div>
     ${bgSection()}
-    <p class="note" id="wallNote">${prefs.wallBgMode === 'photo' && !bgImg ? '還沒選照片，目前用純色背景。' : '自動更新鎖定畫面時會用這裡的設定，和上面的預覽一致。'}</p>
-    <a class="btn ghost" style="display:block;width:100%" download="矩陣桌布.png" href="${url}">下載圖片</a>`;
+    <p class="note" id="wallNote">${prefs.wallBgMode === 'photo' && !bgImg ? '還沒選照片，目前用純色背景。' : '自動更新鎖定畫面時會用這裡的設定，和上面的預覽一致。'}</p>`;
 
   const rerender = () => { elSheet.innerHTML = `<div class="grabber"></div>${draw(build())}`; };
   showSheet(draw(build()), { tall: true });
@@ -1198,11 +1216,8 @@ async function openWallpaper() {
     queued = true;
     requestAnimationFrame(() => {
       queued = false;
-      const url = build();
       const img = elSheet.querySelector('.wall-preview');
-      const dl = elSheet.querySelector('a[download]');
-      if (img) img.src = url;
-      if (dl) dl.href = url;
+      if (img) img.src = build();
     });
   };
 
@@ -1235,6 +1250,8 @@ async function openWallpaper() {
   };
 
   elSheet.onclick = (e) => {
+    const mk = e.target.closest('[data-mock]');
+    if (mk) { prefs.wallMockNP = !prefs.wallMockNP; savePrefs(); rerender(); return; }
     const mode = e.target.closest('[data-bgmode]');
     if (mode) {
       prefs.wallBgMode = mode.dataset.bgmode;
