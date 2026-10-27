@@ -1341,7 +1341,8 @@ function renderSettings() {
     <div class="card">
       <div class="row"><span>主題</span>${sel('theme', [['system', '跟隨系統'], ['light', '淺色'], ['dark', '深色']], prefs.theme)}</div>
       <div class="row col"><span>主題色</span><div class="accent-row">${ACCENTS.map((c) => `<button data-accent="${c}" class="${prefs.accent === c ? 'on' : ''}" style="background:${c}"></button>`).join('')}</div></div>
-      <div class="row"><span>鎖定畫面桌布<div class="sub">把目前矩陣做成 iPhone 桌布</div></span><button class="link" id="wallBtn">產生</button></div>
+      <div class="row"><span>鎖定畫面桌布<div class="sub">外觀、背景照片、版面都在這裡調</div></span><button class="link" id="wallBtn">設定</button></div>
+      <div class="row"><span>立即更新鎖定畫面<div class="sub">不等排程，馬上用捷徑「${esc(prefs.wallShortcut)}」換一張</div></span><a class="link" data-a="runsc" href="shortcuts://run-shortcut?name=${encodeURIComponent(prefs.wallShortcut)}">更新</a></div>
     </div>
 
     <div class="group-title">日曆</div>
@@ -1395,6 +1396,8 @@ elSettings.addEventListener('click', async (e) => {
   }
   const ac = e.target.closest('[data-accent]');
   if (ac) { prefs.accent = ac.dataset.accent; savePrefs(); applyTheme(); render(); return; }
+  // 捷徑連結：先把設定推上 Firestore 再讓它導向，捷徑那邊拿到的才是最新的
+  if (e.target.closest('[data-a="runsc"]')) { pushWallPrefs(); return; }
   const id = e.target.closest('button')?.id;
   if (id === 'sIn' || id === 'sUp') {
     const email = $('#sEmail').value.trim(), pw = $('#sPw').value;
