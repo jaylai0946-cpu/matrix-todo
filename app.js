@@ -1100,9 +1100,23 @@ focus.init({
 // 背景照片另外存，不放進 prefs（prefs 每次設定變動都會整包寫 localStorage，照片太大）
 // 原圖留著，調模糊/亮度時要重新烘焙；烘焙後那張才是上傳給 Scriptable 用的
 const WBG_RAW = 'matrix-todo:wallBgRaw';
-const loadWallBgRaw = () => { try { return localStorage.getItem(WBG_RAW) || ''; } catch { return ''; } };
+const WBG_OLD = 'matrix-todo:wallBg'; // 改成保留原圖之前用的 key
+function loadWallBgRaw() {
+  try {
+    let v = localStorage.getItem(WBG_RAW);
+    if (!v) {
+      // 舊版把照片存在另一個 key，搬過來，不然使用者的照片會像是憑空消失
+      const old = localStorage.getItem(WBG_OLD);
+      if (old) { localStorage.setItem(WBG_RAW, old); localStorage.removeItem(WBG_OLD); v = old; }
+    }
+    return v || '';
+  } catch { return ''; }
+}
 function saveWallBgRaw(b64) {
-  try { b64 ? localStorage.setItem(WBG_RAW, b64) : localStorage.removeItem(WBG_RAW); } catch {}
+  try {
+    if (b64) localStorage.setItem(WBG_RAW, b64);
+    else { localStorage.removeItem(WBG_RAW); localStorage.removeItem(WBG_OLD); }
+  } catch {}
 }
 // Scriptable 沒有濾鏡 API，所以把模糊和亮度烘焙進圖片再上傳，兩邊結果才會一致
 function pushWallBg(bakedB64) {
@@ -1429,9 +1443,22 @@ function envInfo() {
   const tb = document.querySelector('#tabbar');
   const r = tb ? tb.getBoundingClientRect() : { height: 0, bottom: 0 };
   const mode = matchMedia('(display-mode: standalone)').matches ? '獨立模式' : '瀏覽器';
-  return `視窗 ${innerWidth}×${innerHeight} · 安全區 上${rawTop.toFixed(0)} 下${rawBottom.toFixed(0)}`
+  const screenH = (window.screen && window.screen.height) || innerHeight;
+  return `視窗 ${innerWidth}×${innerHeight} / 螢幕 ${screenH} · 安全區 上${rawTop.toFixed(0)} 下${rawBottom.toFixed(0)}`
     + ` · 實際用 ${used.toFixed(0)} · 分頁列 高${r.height.toFixed(0)} 底${(innerHeight - r.bottom).toFixed(0)} · ${mode}`;
 }
+
+// iOS 獨立模式有時會把視窗給得比螢幕矮（狀態列那段），視窗底部其實已經離
+// home indicator 很遠了，這時再保留 34pt 等於白白浪費。把已經空出來的扣掉。
+function syncViewportGap() {
+  const standalone = matchMedia('(display-mode: standalone)').matches;
+  const screenH = (window.screen && window.screen.height) || window.innerHeight;
+  const gap = standalone ? Math.max(0, Math.round(screenH - window.innerHeight)) : 0;
+  document.documentElement.style.setProperty('--vgap', gap + 'px');
+}
+syncViewportGap();
+addEventListener('resize', syncViewportGap);
+addEventListener('orientationchange', syncViewportGap);
 
 const elSettings = $('#settings');
 elSettings.addEventListener('click', async (e) => {
