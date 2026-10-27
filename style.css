@@ -385,20 +385,24 @@ body.focusing .tabbar, body.focusing .fab { display: none; }
 .wall-mock { position: absolute; inset: 0; pointer-events: none; color: rgba(255,255,255,.92);
   text-shadow: 0 1px 4px rgba(0,0,0,.7); font-weight: 500; }
 .wall-mock > * { position: absolute; }
-/* 數值是照實機鎖定畫面截圖量出來的：日期約 6.3%，時鐘字高約 11.75%–22.75% */
-.m-date { top: 6.3%; left: 0; right: 0; text-align: center; font-weight: 500;
+/* 以下位置是照實機「真正的鎖定畫面」截圖量出來的（不是桌布編輯模式，編輯模式會位移）。
+   時鐘的大小取決於你在 iOS 選的時鐘樣式，這裡對齊的是目前那一種。 */
+.m-date { top: 8.5%; left: 0; right: 0; text-align: center; font-weight: 500;
   font-size: 9px; font-size: 4.6cqw; }
-.m-time { top: 9%; left: 0; right: 0; text-align: center; line-height: 1; font-weight: 300;
-  letter-spacing: -0.02em; font-size: 62px; font-size: 33cqw; }
-.m-widgets { top: 25%; left: 7%; right: 7%; height: 8.5%; display: flex; align-items: center;
+/* 你的時鐘是窄體字型（又高又瘦），系統字型做不到。
+   高度才是判斷會不會卡到的依據，所以保住高度、用 scaleX 把寬度壓到實機比例。 */
+.m-time { top: 9.2%; left: 0; right: 0; text-align: center; line-height: 1; font-weight: 700;
+  letter-spacing: -0.04em; font-size: 76px; font-size: 40cqw;
+  transform: scaleX(.72); transform-origin: 50% 0; }
+.m-widgets { top: 28.7%; left: 7%; right: 7%; height: 8.5%; display: flex; align-items: center;
   justify-content: center; border: 1px dashed rgba(255,255,255,.45); border-radius: 8px;
   color: rgba(255,255,255,.6); font-size: 9px; font-size: 4.4cqw; }
-.m-btn { top: 87%; width: 24px; width: 12cqw; height: 24px; height: 12cqw; border-radius: 50%;
+.m-btn { top: 89.7%; width: 24px; width: 12cqw; height: 24px; height: 12cqw; border-radius: 50%;
   border: 1px dashed rgba(255,255,255,.4); }
 .m-left { left: 13%; } .m-right { right: 13%; }
 
 /* 正在播放的音樂卡：約略範圍，實際高度會隨歌名長度和 iOS 版本略有不同 */
-.m-np { top: 37%; left: 7%; right: 7%; height: 37%; display: flex; align-items: center;
+.m-np { top: 70.3%; left: 7%; right: 7%; height: 16.3%; display: flex; align-items: center;
   justify-content: center; border: 1px dashed rgba(255,255,255,.45); border-radius: 10px;
   background: rgba(0,0,0,.25); color: rgba(255,255,255,.6); font-size: 9px; font-size: 4.4cqw; }
 
