@@ -35,6 +35,7 @@ const prefs = {
   wallBright: wallpaper.WALL_RANGE.bright.def, wallBgMode: 'color', wallMockNP: false,
   wallShortcut: '設定背景圖片的照片', // 一鍵更新要叫的捷徑名稱
   wallShowTitle: true, // 桌布左上角要不要顯示矩陣名稱
+  claudeShortcut: '問 Claude', // 頂欄那顆按鈕要叫哪個捷徑
   ...(() => { try { return JSON.parse(localStorage.getItem(PKEY)) || {}; } catch { return {}; } })(),
 };
 const savePrefs = () => { try { localStorage.setItem(PKEY, JSON.stringify(prefs)); } catch {} };
@@ -1125,6 +1126,29 @@ function pushWallBg(bakedB64) {
 
 // 版面參數同時存在本機和 Firestore：Scriptable 的「矩陣待辦桌布」會讀 Firestore 這份，
 // 自動更新鎖定畫面時才會跟這裡調的結果一致。沒登入的話 sync.push 自己會略過。
+// 頂欄的「問 Claude」：用捷徑開 Claude，順便把目前矩陣的未完成任務帶過去當開場白。
+// 捷徑裡用「詢問 Claude」那個動作接住它。
+function claudeHref() {
+  const m = currentMatrix();
+  const mid = m.id === ALL ? matrices()[0].id : m.id;
+  const lines = [];
+  for (const q of [1, 2, 3, 4]) {
+    const names = matrixTasks()
+      .filter((t) => !t.done && Number(t.quadrant) === q)
+      .sort(sorter())
+      .slice(0, 6)
+      .map((t) => t.title);
+    if (names.length) lines.push(`${quad(mid, q).name}：${names.join('、')}`);
+  }
+  const text = lines.length
+    ? `我的矩陣待辦（${m.name}）目前是：\n${lines.join('\n')}`
+    : `我的矩陣待辦（${m.name}）目前是空的。`;
+  return `shortcuts://run-shortcut?name=${encodeURIComponent(prefs.claudeShortcut)}`
+    + `&input=text&text=${encodeURIComponent(text)}`;
+}
+
+const CHAT_ICON = '<svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 11.5a8.4 8.4 0 0 1-9 8.4 9 9 0 0 1-3.8-.8L3 20.5l1.4-4.1A8.4 8.4 0 0 1 3.6 12a8.4 8.4 0 0 1 8.4-8.4 8.4 8.4 0 0 1 9 7.9z"/></svg>';
+
 function pushWallPrefs() {
   try {
     sync.push('prefs', {
@@ -1380,6 +1404,7 @@ function renderSettings() {
       <div class="row col"><span>主題色</span><div class="accent-row">${ACCENTS.map((c) => `<button data-accent="${c}" class="${prefs.accent === c ? 'on' : ''}" style="background:${c}"></button>`).join('')}</div></div>
       <div class="row"><span>鎖定畫面桌布<div class="sub">外觀、背景照片、版面都在這裡調</div></span><button class="link" id="wallBtn">設定</button></div>
       <div class="row"><span>立即更新鎖定畫面<div class="sub">不等排程，馬上用捷徑「${esc(prefs.wallShortcut)}」換一張</div></span><a class="link" data-a="runsc" href="shortcuts://run-shortcut?name=${encodeURIComponent(prefs.wallShortcut)}">更新</a></div>
+      <div class="row"><span>問 Claude 的捷徑<div class="sub">矩陣頁右上角那顆對話按鈕要叫的捷徑：「${esc(prefs.claudeShortcut)}」</div></span><button class="link" id="scClaude">改名稱</button></div>
     </div>
 
     <div class="group-title">日曆</div>
@@ -1498,6 +1523,10 @@ elSettings.addEventListener('click', async (e) => {
   }
   if (id === 'nPush') { await enablePush(); renderSettings(); }
   if (id === 'wallBtn') openWallpaper();
+  if (id === 'scClaude') {
+    const v = prompt('捷徑的確切名稱（在「捷徑」App 的資料庫裡看得到）', prefs.claudeShortcut);
+    if (v && v.trim()) { prefs.claudeShortcut = v.trim(); savePrefs(); render(); }
+  }
   if (id === 'demoBtn') addDemo();
   if (id === 'dExport') exportData();
   if (id === 'dClear') {
@@ -1636,7 +1665,9 @@ function renderTopbar() {
   tb.innerHTML = ui.tab === 'cal' && !wide() ? '<span>行事曆</span>' : `<span>${esc(currentMatrix().name)}</span>${ICONS.chevron}`;
   const w = prefs.showWeather && wx ? `<button class="wx-pill" data-a="summary">${weather.wIcon(wx.now.code, wx.now.day)} ${deg(wx.now.temp)}</button>` : `<button class="icon-btn" data-a="summary" aria-label="今日摘要">${ICONS.sun}</button>`;
   ta.innerHTML = ui.tab === 'matrix' || wide()
-    ? `${w}<button class="icon-btn" data-a="search" aria-label="搜尋">${ICONS.search}</button><button class="icon-btn" data-a="sort" aria-label="排序與顯示">${ICONS.sliders}</button>`
+    ? `${w}<a class="icon-btn" href="${claudeHref()}" aria-label="問 Claude">${CHAT_ICON}</a>`
+      + `<button class="icon-btn" data-a="search" aria-label="搜尋">${ICONS.search}</button>`
+      + `<button class="icon-btn" data-a="sort" aria-label="排序與顯示">${ICONS.sliders}</button>`
     : w;
 }
 $('#titleBtn').addEventListener('click', () => { if (ui.tab === 'matrix' || wide()) openMatrixSheet(); });
